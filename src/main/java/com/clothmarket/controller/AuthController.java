@@ -168,7 +168,6 @@ public class AuthController {
         // DEVELOPMENT MODE: print the OTP instead of emailing it.
         if (logOtpToConsole) {
             log.warn("DEV OTP ({}) generated for {}: {}", purpose, email, otp);
-            return;
         }
 
         if (!emailService.isConfigured()) {
