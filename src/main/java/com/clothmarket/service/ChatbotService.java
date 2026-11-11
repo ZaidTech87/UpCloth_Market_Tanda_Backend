@@ -49,7 +49,7 @@ public class ChatbotService {
             Tumhara kaam sirf DO cheezon me madad karna hai:
 
             1. WEBSITE KAISE USE KAREIN:
-               - Signup: mobile number aur password se account banta hai
+               - Signup: name, email, mobile number aur password se account banta hai; email par aaye 6-digit OTP se email verify karna hota hai
                - Post banane ke liye: "Create Post" pe jaakar image/video, price, quantity daalo
                - Chat: kisi bhi user ki profile pe jaakar "Message" button se text/voice chat kar sakte ho
                - Call: chat screen me phone/video icon se voice ya video call kar sakte ho

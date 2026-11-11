@@ -16,6 +16,9 @@ import static org.mockito.Mockito.*;
 
 class AuthServiceSignupTest {
 
+    private static final String EMAIL = "buyer@example.com";
+    private static final OtpService.Purpose SIGNUP = OtpService.Purpose.SIGNUP;
+
     private UserRepository users;
     private OtpService otp;
     private AuthService service;
@@ -44,6 +47,7 @@ class AuthServiceSignupTest {
         r.setName("A");
         r.setLocation("B");
         r.setMobile("9999999999");
+        r.setEmail(EMAIL);
         r.setPassword("abc123");
         r.setAcceptTerms(accept);
         r.setOtp(code);
@@ -59,19 +63,52 @@ class AuthServiceSignupTest {
 
     @Test
     void wrongOrMissingOtpIsRejected() {
-        when(otp.verifyAndConsume("signup:9999999999", "000000")).thenReturn(OtpService.Result.INVALID);
-        when(otp.verifyAndConsume("signup:9999999999", null)).thenReturn(OtpService.Result.EXPIRED_OR_MISSING);
+        when(otp.verifyAndConsume(SIGNUP, EMAIL, "000000")).thenReturn(OtpService.Result.INVALID);
+        when(otp.verifyAndConsume(SIGNUP, EMAIL, null)).thenReturn(OtpService.Result.EXPIRED_OR_MISSING);
         assertThrows(ApiException.class, () -> service.signUp(req(true, "000000")));
         assertThrows(ApiException.class, () -> service.signUp(req(true, null)));
         verify(users, never()).save(any(User.class));
     }
 
     @Test
+    void tooManyAttemptsIsRejected() {
+        when(otp.verifyAndConsume(SIGNUP, EMAIL, "000000")).thenReturn(OtpService.Result.TOO_MANY_ATTEMPTS);
+        assertThrows(ApiException.class, () -> service.signUp(req(true, "000000")));
+        verify(users, never()).save(any(User.class));
+    }
+
+    @Test
     void correctOtpCreatesAccountAndRecordsConsent() {
-        when(otp.verifyAndConsume("signup:9999999999", "123456")).thenReturn(OtpService.Result.OK);
+        when(otp.verifyAndConsume(SIGNUP, EMAIL, "123456")).thenReturn(OtpService.Result.OK);
         var res = service.signUp(req(true, "123456"));
         assertEquals("tok", res.getToken());
+        assertEquals(EMAIL, res.getEmail());
         verify(users).save(argThat(u -> "1".equals(u.getTermsVersion()) && u.getTermsAcceptedAt() != null));
+    }
+
+    @Test
+    void accountIsStoredWithNormalisedEmailAndHashedPassword() {
+        when(otp.verifyAndConsume(SIGNUP, EMAIL, "123456")).thenReturn(OtpService.Result.OK);
+        SignUpRequest r = req(true, "123456");
+        r.setEmail("  Buyer@Example.COM ");
+        service.signUp(r);
+        verify(users).save(argThat(u -> EMAIL.equals(u.getEmail()) && "HASH".equals(u.getPassword())));
+    }
+
+    @Test
+    void duplicateEmailIsRejectedWithoutConsumingTheOtp() {
+        when(users.existsByEmail(EMAIL)).thenReturn(true);
+        assertThrows(ApiException.class, () -> service.signUp(req(true, "123456")));
+        verifyNoInteractions(otp);
+        verify(users, never()).save(any(User.class));
+    }
+
+    @Test
+    void duplicateMobileIsRejectedWithoutConsumingTheOtp() {
+        when(users.existsByMobile("9999999999")).thenReturn(true);
+        assertThrows(ApiException.class, () -> service.signUp(req(true, "123456")));
+        verifyNoInteractions(otp);
+        verify(users, never()).save(any(User.class));
     }
 
     @Test

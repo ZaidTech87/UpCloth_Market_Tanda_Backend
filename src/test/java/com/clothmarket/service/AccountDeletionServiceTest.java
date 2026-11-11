@@ -24,6 +24,8 @@ import static org.mockito.Mockito.*;
 
 class AccountDeletionServiceTest {
 
+    private static final String EMAIL = "buyer@example.com";
+
     private UserRepository users;
     private PostRepository posts;
     private MessageRepository messages;
@@ -55,6 +57,7 @@ class AccountDeletionServiceTest {
         user = new User();
         user.setId(5L);
         user.setMobile("9999999999");
+        user.setEmail(EMAIL);
         user.setPassword("HASH");
         user.setProfileImage("/uploads/profiles/me.jpg");
         when(users.findById(5L)).thenReturn(Optional.of(user));
@@ -70,16 +73,29 @@ class AccountDeletionServiceTest {
 
         assertThrows(ApiException.class, () -> service.deleteAccount(5L, "bad"));
 
-        verify(attempts).recordFailure("9999999999");
+        // Same lockout key as login (the email), so both endpoints share one lockout.
+        verify(attempts).recordFailure(EMAIL);
         verifyNoInteractions(messages, posts, blocks, storage);
         verify(users, never()).deleteById(any());
     }
 
     @Test
     void lockedAccountCannotAttemptDeletion() {
-        when(attempts.isLocked("9999999999")).thenReturn(true);
+        when(attempts.isLocked(EMAIL)).thenReturn(true);
         assertThrows(ApiException.class, () -> service.deleteAccount(5L, "whatever"));
         verify(users, never()).deleteById(any());
+    }
+
+    @Test
+    void accountWithoutEmailUsesItsOwnLockoutKey() {
+        user.setEmail(null);
+        when(encoder.matches("bad", "HASH")).thenReturn(false);
+
+        assertThrows(ApiException.class, () -> service.deleteAccount(5L, "bad"));
+
+        verify(attempts).isLocked("user:5");
+        verify(attempts).recordFailure("user:5");
+        verify(attempts, never()).recordFailure("");
     }
 
     @Test
@@ -95,6 +111,7 @@ class AccountDeletionServiceTest {
         order.verify(blocks).deleteAllInvolving(5L);
         order.verify(users).deleteById(5L);
 
+        verify(attempts, atLeastOnce()).recordSuccess(EMAIL);
         verify(storage).deleteMedia("/uploads/profiles/me.jpg");
         verify(storage).deleteMedia("/uploads/posts/p.jpg");
         verify(storage).deleteMedia("/uploads/voice/v.m4a");

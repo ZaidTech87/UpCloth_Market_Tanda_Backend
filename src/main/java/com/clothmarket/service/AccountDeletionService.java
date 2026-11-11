@@ -65,18 +65,19 @@ public class AccountDeletionService {
     /** User-initiated deletion: requires the current password. */
     public void deleteAccount(Long userId, String password) {
         User user = users.findById(userId).orElseThrow(() -> ApiException.notFound("User not found"));
+        String lockKey = lockoutKey(user);
 
         // Re-use the login lockout so this endpoint cannot be used to guess the password.
-        if (loginAttempts.isLocked(user.getMobile())) {
+        if (loginAttempts.isLocked(lockKey)) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS,
                     "Too many failed attempts. Please try again later.");
         }
         if (password == null || password.isEmpty()
                 || !passwordEncoder.matches(password, user.getPassword())) {
-            loginAttempts.recordFailure(user.getMobile());
+            loginAttempts.recordFailure(lockKey);
             throw ApiException.badRequest("Incorrect password");
         }
-        loginAttempts.recordSuccess(user.getMobile());
+        loginAttempts.recordSuccess(lockKey);
 
         purge(user);
     }
@@ -105,7 +106,7 @@ public class AccountDeletionService {
             users.deleteById(userId);
         });
 
-        loginAttempts.recordSuccess(user.getMobile());
+        loginAttempts.recordSuccess(lockoutKey(user));
 
         // 3. Media files, best effort.
         List<String> failed = new ArrayList<>();
@@ -118,6 +119,16 @@ public class AccountDeletionService {
         }
         log.info("Account {} deleted ({} media files, {} could not be removed)",
                 userId, mediaUrls.size(), failed.size());
+    }
+
+    /**
+     * Same key the login uses (the normalised email), so failed password guesses here and at
+     * login count towards one shared lockout. Accounts created before email OTP have no email;
+     * they get a per-user key so they never share a lockout bucket with each other.
+     */
+    private static String lockoutKey(User user) {
+        String email = AuthService.normalizeEmail(user.getEmail());
+        return email.isEmpty() ? "user:" + user.getId() : email;
     }
 
     private static void addIfPresent(Set<String> set, String value) {

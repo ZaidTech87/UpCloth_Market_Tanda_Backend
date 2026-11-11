@@ -10,6 +10,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 
 @Entity
 @Table(name = "users")
@@ -30,6 +31,17 @@ public class User {
 
     @Column(nullable = false, unique = true)
     private String mobile;
+
+    /**
+     * Login identifier and the address OTP emails are sent to. Always stored trimmed and
+     * lower-case (see setEmail), so a plain comparison is case-insensitive.
+     *
+     * Nullable in the database only because accounts created before email OTP have none;
+     * signup always requires one. Uniqueness is enforced by the unique index created in
+     * docs/sql/001_add_user_email.sql.
+     */
+    @Column(name = "email", length = 254)
+    private String email;
 
     // The BCrypt hash must never be serialised into any API response or WebSocket frame.
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
@@ -57,6 +69,16 @@ public class User {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     @JsonIgnore
     private List<Post> posts;
+
+    /** Normalises on every set: trimmed, lower-case, and blank becomes null. */
+    public void setEmail(String email) {
+        if (email == null) {
+            this.email = null;
+            return;
+        }
+        String normalised = email.trim().toLowerCase(Locale.ROOT);
+        this.email = normalised.isEmpty() ? null : normalised;
+    }
 
     @PrePersist
     protected void onCreate() {

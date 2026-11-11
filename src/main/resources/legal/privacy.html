@@ -5,14 +5,14 @@
 
 <h2>Data we collect</h2>
 <ul>
-    <li><b>Account data you give us:</b> name, location (as you type it), mobile number, and a password (stored only as a one-way hash).</li>
+    <li><b>Account data you give us:</b> name, location (as you type it), email address, mobile number, and a password (stored only as a one-way hash).</li>
     <li><b>Content you create:</b> profile photo, listing posts (description, price, quantity, cloth type, photo or video), chat messages and voice messages.</li>
     <li><b>Safety data:</b> reports you file, accounts you block, and the date and version of the Terms and Privacy Policy you accepted.</li>
     <li><b>Technical data:</b> your IP address is processed to apply rate limits and protect against abuse. Audio and video calls are sent directly between devices (WebRTC); if a direct path is not possible they pass through a relay server and are not recorded or stored by us. Call signalling data is not stored.</li>
 </ul>
 
 <h2>How we use it</h2>
-<p>To create and secure your account, show your listings and profile to other users, deliver messages and calls, send one-time passwords by SMS for password reset, review reported or unsafe content, prevent abuse and fraud, and meet legal obligations.</p>
+<p>To create and secure your account, verify your email address and let you reset your password by sending one-time passwords (OTPs) to your email, show your listings and profile to other users, deliver messages and calls, review reported or unsafe content, prevent abuse and fraud, and meet legal obligations. One-time passwords are short-lived, can be used once, and are kept only in a hashed form while they are valid.</p>
 
 <h2>Who can see what</h2>
 <p>Your name, location, profile photo and listings are visible to other users. <b>Your mobile number is not shown to other users.</b> Messages are visible to you and the person you message.</p>
@@ -21,7 +21,7 @@
 <ul>
     <li>Cloud hosting and database provider (stores all account data)</li>
     <li>Cloudflare R2 (stores uploaded photos, videos and voice messages in private storage)</li>
-    <li>Fast2SMS (delivers one-time password SMS to your mobile number)</li>
+    <li>Resend (delivers one-time password emails to your email address)</li>
     <li>Sightengine (automatically checks uploaded images for unsafe content)</li>
     <li>Groq (generates replies for the in-app assistant; text you type into the assistant is sent to it)</li>
     <li>A TURN relay provider, if configured, to relay calls between devices</li>

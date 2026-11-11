@@ -14,6 +14,8 @@ public class AuthResponse {
     private Long userId;
     private String name;
     private String mobile;
+    // The signed-in user's own email (login identifier); null for accounts created before email OTP.
+    private String email;
     private String location;
     // Holds the permanent R2 object key; converted to a short-lived signed URL when serialized.
     @JsonSerialize(using = MediaUrlSerializer.class)

@@ -10,5 +10,11 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByMobile(String mobile);
     boolean existsByMobile(String mobile);
+
+    // Email is stored trimmed and lower-case (User.setEmail), so callers must pass a
+    // normalised address (trim + lower-case) for these exact-match lookups.
+    Optional<User> findByEmail(String email);
+    boolean existsByEmail(String email);
+
     List<User> findTop10ByNameContainingIgnoreCase(String name);
 }
