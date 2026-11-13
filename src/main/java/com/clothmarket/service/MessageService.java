@@ -157,8 +157,17 @@ public class MessageService {
         return previews;
     }
 
+    /**
+     * Total unread MESSAGES (not conversations) addressed to the user. Messages from users the
+     * inbox hides (blocked either way) are left out, so this always equals the sum of the unread
+     * counts shown in the inbox and the badge can always be cleared by reading the inbox.
+     */
     public long getUnreadCount(Long userId) {
-        return messageRepository.countTotalUnread(userId);
+        java.util.Set<Long> hidden = blockService.relatedIds(userId);
+        if (hidden.isEmpty()) {
+            return messageRepository.countTotalUnread(userId);
+        }
+        return messageRepository.countTotalUnreadExcludingSenders(userId, hidden);
     }
 
     @Transactional

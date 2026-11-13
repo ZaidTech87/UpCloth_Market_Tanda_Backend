@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.time.LocalDateTime;
 import java.time.Instant;
+import java.time.ZoneOffset;
 
 @Entity
 @Table(name = "posts", indexes = {
@@ -52,7 +53,10 @@ public class Post {
     private String clothType;
 
     @Column(name = "created_at")
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    @JsonFormat(
+            pattern = "yyyy-MM-dd'T'HH:mm:ss",
+            timezone = "UTC"
+    )
     private LocalDateTime createdAt;
 
     @Transient
@@ -69,6 +73,9 @@ public class Post {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        createdAt = LocalDateTime.ofInstant(
+                Instant.now(),
+                ZoneOffset.UTC
+        );
     }
 }

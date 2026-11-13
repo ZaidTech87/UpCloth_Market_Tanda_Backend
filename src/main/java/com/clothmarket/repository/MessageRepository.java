@@ -48,6 +48,12 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     @Query("SELECT COUNT(m) FROM Message m WHERE m.receiverId = :userId AND m.isRead = false")
     long countTotalUnread(@Param("userId") Long userId);
 
+    /** Total unread, ignoring messages from the given senders (blocked users the inbox hides). */
+    @Query("SELECT COUNT(m) FROM Message m WHERE m.receiverId = :userId AND m.isRead = false " +
+            "AND m.senderId NOT IN :excludedSenderIds")
+    long countTotalUnreadExcludingSenders(@Param("userId") Long userId,
+                                          @Param("excludedSenderIds") java.util.Collection<Long> excludedSenderIds);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Message m SET m.isRead = true WHERE " +
             "m.senderId = :fromUserId AND m.receiverId = :toUserId AND m.isRead = false")
