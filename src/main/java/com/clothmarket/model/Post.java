@@ -52,9 +52,12 @@ public class Post {
     @Column(name = "cloth_type")
     private String clothType;
 
+    // Stored in UTC (see onCreate). The trailing 'Z' tells every client the value is UTC, so each
+    // phone/browser converts it to its own local time. Without it the app reads the UTC clock time
+    // as local time and a new post shows "5h ago" in India.
     @Column(name = "created_at")
     @JsonFormat(
-            pattern = "yyyy-MM-dd'T'HH:mm:ss",
+            pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'",
             timezone = "UTC"
     )
     private LocalDateTime createdAt;

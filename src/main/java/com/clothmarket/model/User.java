@@ -66,6 +66,16 @@ public class User {
     @Column(name = "terms_accepted_at")
     private LocalDateTime termsAcceptedAt;
 
+    /**
+     * Set only by an administrator through the admin API. @JsonIgnore keeps it out of every API
+     * response and makes it impossible for any client request body to set it. A blocked user
+     * cannot log in and their existing tokens are rejected (JwtAuthenticationFilter).
+     * Boolean (not boolean) with a default so a row that somehow holds NULL cannot break loading.
+     */
+    @JsonIgnore
+    @Column(name = "blocked", nullable = false)
+    private Boolean blocked = false;
+
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     @JsonIgnore
     private List<Post> posts;

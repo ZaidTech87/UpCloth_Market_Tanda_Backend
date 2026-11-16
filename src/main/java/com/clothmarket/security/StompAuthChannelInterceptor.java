@@ -1,5 +1,6 @@
 package com.clothmarket.security;
 
+import com.clothmarket.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,10 +25,14 @@ import java.util.regex.Pattern;
  * Security for the STOMP layer (clientInboundChannel).
  *
  *  CONNECT    must carry "Authorization: Bearer <jwt>"; the user is then bound to the session.
+ *             The account must still exist and must not be blocked by an administrator.
  *  SUBSCRIBE  only to /topic/messages/{ownUserId} and /topic/call/{ownUserId}.
  *  SEND       only to /app/call/signal. Clients can NOT publish straight to /topic/**
  *             (the simple broker would relay it, letting anyone forge messages/calls
  *             to any user).
+ *
+ * SUBSCRIBE and SEND also re-check that the account is not blocked, so a user blocked while a
+ * socket is already open cannot keep subscribing or sending call signals.
  *
  * The authenticated user id is also stored in the session attributes under
  * {@link #USER_ID_ATTR} so @MessageMapping handlers can read it.
@@ -45,14 +50,17 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     private static final String CALL_SIGNAL_DESTINATION = "/app/call/signal";
 
     private final JwtUtil jwtUtil;
+    private final UserRepository userRepository;
     private final boolean authRequired;
 
     /** sessionId -> user, kept as a fallback in case the principal header is not propagated. */
     private final Map<String, Long> sessionUsers = new ConcurrentHashMap<>();
 
     public StompAuthChannelInterceptor(JwtUtil jwtUtil,
+                                       UserRepository userRepository,
                                        @Value("${websocket.auth-required:true}") boolean authRequired) {
         this.jwtUtil = jwtUtil;
+        this.userRepository = userRepository;
         this.authRequired = authRequired;
     }
 
@@ -85,7 +93,9 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         Optional<AuthenticatedUser> user = Optional.empty();
         if (header != null) {
             String token = header.startsWith("Bearer ") ? header.substring(7).trim() : header.trim();
-            user = jwtUtil.authenticate(token);
+            // A valid signature is not enough: the account must still exist and not be blocked.
+            user = jwtUtil.authenticate(token)
+                    .filter(principal -> userRepository.existsActiveById(principal.userId()));
         }
 
         if (user.isPresent()) {
@@ -102,7 +112,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         }
 
         if (authRequired) {
-            log.warn("Rejected STOMP CONNECT: missing or invalid JWT");
+            log.warn("Rejected STOMP CONNECT: missing or invalid JWT, or the account is unavailable");
             throw new MessagingException("Unauthorized");
         }
         log.warn("STOMP CONNECT without JWT accepted because websocket.auth-required=false");
@@ -119,6 +129,8 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             return; // legacy mode: cannot check ownership without an identity
         }
 
+        requireActive(userId);
+
         Matcher m = destination == null ? null : OWN_TOPIC.matcher(destination);
         if (m == null || !m.matches() || !String.valueOf(userId).equals(m.group(2))) {
             log.warn("User {} denied SUBSCRIBE to {}", userId, destination);
@@ -133,6 +145,9 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         if (userId == null && authRequired) {
             throw new MessagingException("Unauthorized");
         }
+        if (userId != null) {
+            requireActive(userId);
+        }
         if (!CALL_SIGNAL_DESTINATION.equals(destination)) {
             log.warn("User {} denied SEND to {}", userId, destination);
             throw new MessagingException("Forbidden destination");
@@ -143,6 +158,14 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             if (attrs != null) {
                 attrs.putIfAbsent(USER_ID_ATTR, userId);
             }
+        }
+    }
+
+    /** Rejects the frame when the account was deleted or blocked after the socket was opened. */
+    private void requireActive(Long userId) {
+        if (!userRepository.existsActiveById(userId)) {
+            log.warn("Rejected STOMP frame: account {} is blocked or no longer exists", userId);
+            throw new MessagingException("Unauthorized");
         }
     }
 

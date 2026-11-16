@@ -1,5 +1,6 @@
 package com.clothmarket.security;
 
+import com.clothmarket.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.messaging.Message;
@@ -12,10 +13,13 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.HashMap;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class StompAuthChannelInterceptorTest {
 
     private JwtUtil jwt;
+    private UserRepository users;
     private StompAuthChannelInterceptor interceptor;
 
     @BeforeEach
@@ -24,7 +28,10 @@ class StompAuthChannelInterceptorTest {
         ReflectionTestUtils.setField(jwt, "secret", "unit-test-secret-unit-test-secret-1234");
         ReflectionTestUtils.setField(jwt, "expiration", 60_000L);
         jwt.init();
-        interceptor = new StompAuthChannelInterceptor(jwt, true);
+        users = mock(UserRepository.class);
+        // User 7 exists and is not blocked; every other id is unknown (mock default: false).
+        when(users.existsActiveById(7L)).thenReturn(true);
+        interceptor = new StompAuthChannelInterceptor(jwt, users, true);
     }
 
     private Message<?> frame(StompCommand cmd, String session, String destination, String bearer) {
@@ -81,5 +88,29 @@ class StompAuthChannelInterceptorTest {
                 interceptor.preSend(frame(StompCommand.SUBSCRIBE, "ghost", "/topic/messages/1", null), null));
         assertThrows(MessagingException.class, () ->
                 interceptor.preSend(frame(StompCommand.SEND, "ghost", "/app/call/signal", null), null));
+    }
+
+    @Test
+    void blockedOrDeletedAccountCannotConnectEvenWithAValidToken() {
+        // A correctly signed token for a user the repository does not consider active.
+        String token = jwt.generateToken(8L, "8");
+        assertThrows(MessagingException.class,
+                () -> interceptor.preSend(frame(StompCommand.CONNECT, "s2", null, token), null));
+    }
+
+    @Test
+    void userBlockedAfterConnectingCannotSubscribeOrSendAnyMore() {
+        String token = jwt.generateToken(7L, "7");
+        interceptor.preSend(frame(StompCommand.CONNECT, "s1", null, token), null);
+        assertDoesNotThrow(() ->
+                interceptor.preSend(frame(StompCommand.SUBSCRIBE, "s1", "/topic/messages/7", null), null));
+
+        // An administrator blocks the user while the socket is open.
+        when(users.existsActiveById(7L)).thenReturn(false);
+
+        assertThrows(MessagingException.class, () ->
+                interceptor.preSend(frame(StompCommand.SUBSCRIBE, "s1", "/topic/call/7", null), null));
+        assertThrows(MessagingException.class, () ->
+                interceptor.preSend(frame(StompCommand.SEND, "s1", "/app/call/signal", null), null));
     }
 }

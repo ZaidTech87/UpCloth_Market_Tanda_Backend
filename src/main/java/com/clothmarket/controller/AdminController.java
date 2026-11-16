@@ -3,28 +3,25 @@ package com.clothmarket.controller;
 import com.clothmarket.exception.ApiException;
 import com.clothmarket.model.Report;
 import com.clothmarket.repository.ReportRepository;
-import com.clothmarket.security.CurrentUser;
 import com.clothmarket.service.AccountDeletionService;
+import com.clothmarket.service.AdminAccess;
 import com.clothmarket.service.PostService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Minimal moderation API for the operator. There is no admin role in the data model;
  * moderators are the user ids listed in ADMIN_USER_IDS (comma separated). Empty =
- * nobody is an admin and every endpoint answers 403.
+ * nobody is an admin and every endpoint answers 403. The check lives in {@link AdminAccess}.
  *
- * Intended to be driven with curl/Postman until a real admin UI exists (docs/launch).
+ * The admin panel's posts/users endpoints are in AdminPanelController.
  */
 @RestController
 @RequestMapping("/admin")
@@ -36,15 +33,13 @@ public class AdminController {
     private final ReportRepository reports;
     private final PostService postService;
     private final AccountDeletionService accountDeletionService;
-
-    @Value("${admin.user-ids:}")
-    private String adminUserIds;
+    private final AdminAccess adminAccess;
 
     @GetMapping("/reports")
     public ResponseEntity<List<Report>> openReports(
             @RequestParam(defaultValue = "OPEN") String status,
             @RequestParam(defaultValue = "50") int limit) {
-        requireAdmin();
+        adminAccess.requireAdmin();
         int size = Math.min(Math.max(limit, 1), 200);
         return ResponseEntity.ok(reports.findByStatusOrderByCreatedAtAsc(
                 status.toUpperCase(), PageRequest.of(0, size)));
@@ -54,7 +49,7 @@ public class AdminController {
     @PostMapping("/reports/{id}/resolve")
     public ResponseEntity<Map<String, String>> resolve(@PathVariable Long id,
                                                        @RequestBody Map<String, String> body) {
-        requireAdmin();
+        adminAccess.requireAdmin();
         String action = body == null || body.get("action") == null ? "" : body.get("action").toUpperCase();
         if (!ACTIONS.contains(action)) {
             throw ApiException.badRequest("action must be one of " + ACTIONS);
@@ -93,17 +88,5 @@ public class AdminController {
         }
         reports.saveAll(same);
         return ResponseEntity.ok(Map.of("message", "Report resolved: " + action));
-    }
-
-    private void requireAdmin() {
-        if (!admins().contains(CurrentUser.id())) {
-            throw ApiException.forbidden("Access denied");
-        }
-    }
-
-    private Set<Long> admins() {
-        return Arrays.stream(adminUserIds.split(","))
-                .map(String::trim).filter(s -> s.matches("\\d+"))
-                .map(Long::valueOf).collect(Collectors.toSet());
     }
 }

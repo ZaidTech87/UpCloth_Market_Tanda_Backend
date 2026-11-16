@@ -23,6 +23,9 @@ public class AuthService {
     // Wrong email and wrong password get the same message so the response does not reveal which emails exist.
     private static final String BAD_CREDENTIALS = "Invalid email or password";
 
+    // Shown only AFTER the correct password was supplied, so it cannot be used to probe which emails exist.
+    private static final String ACCOUNT_BLOCKED = "This account has been suspended. Please contact support.";
+
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
     private final PasswordEncoder passwordEncoder;
@@ -107,6 +110,12 @@ public class AuthService {
         if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             loginAttemptService.recordFailure(email);
             throw new ApiException(HttpStatus.UNAUTHORIZED, BAD_CREDENTIALS);
+        }
+
+        // Blocked by an admin: no token is issued. Not 401/403, because the mobile app treats those
+        // as "session expired". A NULL value (row from before the column existed) counts as not blocked.
+        if (Boolean.TRUE.equals(user.getBlocked())) {
+            throw new ApiException(HttpStatus.LOCKED, ACCOUNT_BLOCKED);
         }
 
         loginAttemptService.recordSuccess(email);

@@ -41,16 +41,18 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    void validTokenOfExistingUserAuthenticates() throws Exception {
-        when(users.existsById(5L)).thenReturn(true);
+    void validTokenOfActiveUserAuthenticates() throws Exception {
+        // "Active" = the account exists and is not blocked (UserRepository.existsActiveById).
+        when(users.existsActiveById(5L)).thenReturn(true);
         run("good");
         assertNotNull(SecurityContextHolder.getContext().getAuthentication());
         assertEquals(5L, CurrentUser.id());
     }
 
     @Test
-    void validTokenOfDeletedAccountDoesNotAuthenticate() throws Exception {
-        when(users.existsById(5L)).thenReturn(false);
+    void validTokenOfDeletedOrBlockedAccountDoesNotAuthenticate() throws Exception {
+        // existsActiveById is false both for a deleted account and for a blocked one.
+        when(users.existsActiveById(5L)).thenReturn(false);
         run("good");
         assertNull(SecurityContextHolder.getContext().getAuthentication());
     }

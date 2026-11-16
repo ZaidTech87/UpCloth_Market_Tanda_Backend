@@ -28,7 +28,10 @@ import java.util.Collections;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
-    /** Used to reject tokens whose account was deleted (a JWT stays cryptographically valid until it expires). */
+    /**
+     * Used to reject tokens whose account was deleted or blocked by an administrator (a JWT stays
+     * cryptographically valid until it expires, so the account state is checked on every request).
+     */
     private final UserRepository userRepository;
 
     @Override
@@ -42,13 +45,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = authHeader.substring(7).trim();
 
             jwtUtil.authenticate(token)
-                    .filter(principal -> userRepository.existsById(principal.userId()))
+                    .filter(principal -> userRepository.existsActiveById(principal.userId()))
                     .ifPresent(principal -> {
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                principal, null, Collections.emptyList());
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-            });
+                        UsernamePasswordAuthenticationToken authentication =
+                                new UsernamePasswordAuthenticationToken(
+                                        principal, null, Collections.emptyList());
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                    });
         }
 
         filterChain.doFilter(request, response);
