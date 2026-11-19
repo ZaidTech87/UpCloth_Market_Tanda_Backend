@@ -14,9 +14,12 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -172,7 +175,56 @@ public class MessageService {
 
     @Transactional
     public void markAsRead(Long fromUserId, Long toUserId) {
+        // Tell the sender (blue ticks) only when something actually changes, so opening an
+        // already-read chat does not push anything.
+        boolean hadUnread = messageRepository.countUnreadInChat(fromUserId, toUserId) > 0;
         messageRepository.markAsRead(fromUserId, toUserId);
+        if (hadUnread) {
+            pushStatusAfterCommit(fromUserId, "READ", toUserId);
+        }
+    }
+
+    /**
+     * Called by the receiver's app when it has received messages (grey double tick). Marks every
+     * undelivered message addressed to the user as delivered and tells each affected sender.
+     */
+    @Transactional
+    public void markDelivered(Long toUserId) {
+        List<Long> senderIds = messageRepository.findSenderIdsWithUndelivered(toUserId);
+        if (senderIds.isEmpty()) {
+            return;
+        }
+        messageRepository.markDelivered(toUserId, LocalDateTime.now());
+        for (Long senderId : senderIds) {
+            pushStatusAfterCommit(senderId, "DELIVERED", toUserId);
+        }
+    }
+
+    /**
+     * Pushes {type, peerId} to /topic/message-status/{senderId} once the transaction has
+     * committed, so the sender's app never sees a status the database does not have yet. A push
+     * failure must not fail the request: the sender sees the right ticks when the chat reloads.
+     */
+    private void pushStatusAfterCommit(Long senderId, String type, Long peerId) {
+        Runnable push = () -> {
+            try {
+                messagingTemplate.convertAndSend("/topic/message-status/" + senderId,
+                        Map.of("type", type, "peerId", peerId));
+            } catch (RuntimeException e) {
+                log.warn("Message status push failed (type={}, senderId={}, cause={})",
+                        type, senderId, e.getClass().getSimpleName());
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    push.run();
+                }
+            });
+        } else {
+            push.run();
+        }
     }
 
     private void requireValidReceiver(Long senderId, Long receiverId) {

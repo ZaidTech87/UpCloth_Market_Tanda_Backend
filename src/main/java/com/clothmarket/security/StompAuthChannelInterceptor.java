@@ -26,7 +26,8 @@ import java.util.regex.Pattern;
  *
  *  CONNECT    must carry "Authorization: Bearer <jwt>"; the user is then bound to the session.
  *             The account must still exist and must not be blocked by an administrator.
- *  SUBSCRIBE  only to /topic/messages/{ownUserId} and /topic/call/{ownUserId}.
+ *  SUBSCRIBE  only to /topic/messages/{ownUserId}, /topic/message-status/{ownUserId} and
+ *             /topic/call/{ownUserId}.
  *  SEND       only to /app/call/signal. Clients can NOT publish straight to /topic/**
  *             (the simple broker would relay it, letting anyone forge messages/calls
  *             to any user).
@@ -45,7 +46,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     private static final Logger log = LoggerFactory.getLogger(StompAuthChannelInterceptor.class);
 
     private static final Pattern OWN_TOPIC =
-            Pattern.compile("^/topic/(messages|call)/(\\d+)$");
+            Pattern.compile("^/topic/(messages|message-status|call)/(\\d+)$");
 
     private static final String CALL_SIGNAL_DESTINATION = "/app/call/signal";
 

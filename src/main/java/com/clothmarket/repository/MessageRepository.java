@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -58,6 +59,19 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     @Query("UPDATE Message m SET m.isRead = true WHERE " +
             "m.senderId = :fromUserId AND m.receiverId = :toUserId AND m.isRead = false")
     void markAsRead(@Param("fromUserId") Long fromUserId, @Param("toUserId") Long toUserId);
+
+    // ---- delivery ticks ----
+
+    /** Distinct senders who have messages to this receiver that are not yet marked delivered. */
+    @Query("SELECT DISTINCT m.senderId FROM Message m " +
+            "WHERE m.receiverId = :toUserId AND m.deliveredAt IS NULL")
+    List<Long> findSenderIdsWithUndelivered(@Param("toUserId") Long toUserId);
+
+    /** Marks every undelivered message addressed to this user as delivered. Returns rows changed. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Message m SET m.deliveredAt = :now " +
+            "WHERE m.receiverId = :toUserId AND m.deliveredAt IS NULL")
+    int markDelivered(@Param("toUserId") Long toUserId, @Param("now") LocalDateTime now);
 
     // ---- account deletion helpers ----
     @Query("SELECT m.voiceUrl FROM Message m WHERE (m.senderId = :userId OR m.receiverId = :userId) " +

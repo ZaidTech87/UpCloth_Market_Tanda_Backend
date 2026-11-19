@@ -73,6 +73,16 @@ public class MessageController {
         return ResponseEntity.ok().build();
     }
 
+    /**
+     * The receiver's app calls this when it has received messages (grey double tick). The
+     * receiver is always the authenticated user, so nobody can mark someone else's messages.
+     */
+    @PostMapping("/mark-delivered")
+    public ResponseEntity<Void> markDelivered() {
+        messageService.markDelivered(CurrentUser.id());
+        return ResponseEntity.ok().build();
+    }
+
     private static void requireSelf(Long pathUserId) {
         if (!CurrentUser.id().equals(pathUserId)) {
             throw ApiException.forbidden("You can only access your own data");

@@ -156,8 +156,10 @@ public class AuthController {
      * Issues an OTP for the given purpose and emails it. Enforces the resend cooldown.
      * Signup and reset OTPs are stored separately, so one can never be used for the other.
      */
+
     private void issueAndSendOtp(OtpService.Purpose purpose, String email) {
         long wait = otpService.secondsUntilResendAllowed(purpose, email);
+
         if (wait > 0) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS,
                     "Please wait " + wait + " seconds before requesting another OTP");
@@ -165,9 +167,9 @@ public class AuthController {
 
         String otp = otpService.issue(purpose, email);
 
-        // DEVELOPMENT MODE: print the OTP instead of emailing it.
         if (logOtpToConsole) {
             log.warn("DEV OTP ({}) generated for {}: {}", purpose, email, otp);
+            return; // Development mode: skip email and retain OTP in memory
         }
 
         if (!emailService.isConfigured()) {
@@ -186,6 +188,7 @@ public class AuthController {
                     "Could not send the OTP right now. Please try again later.");
         }
     }
+
 
     private static boolean isValidEmail(String email) {
         return email.length() <= 254 && EMAIL.matcher(email).matches();

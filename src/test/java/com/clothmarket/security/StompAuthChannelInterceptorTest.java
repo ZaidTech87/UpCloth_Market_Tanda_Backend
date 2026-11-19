@@ -70,6 +70,17 @@ class StompAuthChannelInterceptorTest {
     }
 
     @Test
+    void connectedUserMaySubscribeOnlyToOwnMessageStatusTopic() {
+        String token = jwt.generateToken(7L, "7");
+        interceptor.preSend(frame(StompCommand.CONNECT, "s1", null, token), null);
+
+        assertDoesNotThrow(() ->
+                interceptor.preSend(frame(StompCommand.SUBSCRIBE, "s1", "/topic/message-status/7", null), null));
+        assertThrows(MessagingException.class, () ->
+                interceptor.preSend(frame(StompCommand.SUBSCRIBE, "s1", "/topic/message-status/8", null), null));
+    }
+
+    @Test
     void clientsCannotPublishDirectlyToTopics() {
         String token = jwt.generateToken(7L, "7");
         interceptor.preSend(frame(StompCommand.CONNECT, "s1", null, token), null);
@@ -80,6 +91,8 @@ class StompAuthChannelInterceptorTest {
                 interceptor.preSend(frame(StompCommand.SEND, "s1", "/topic/messages/8", null), null));
         assertThrows(MessagingException.class, () ->
                 interceptor.preSend(frame(StompCommand.SEND, "s1", "/topic/call/8", null), null));
+        assertThrows(MessagingException.class, () ->
+                interceptor.preSend(frame(StompCommand.SEND, "s1", "/topic/message-status/8", null), null));
     }
 
     @Test

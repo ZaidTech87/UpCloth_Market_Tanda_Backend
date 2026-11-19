@@ -43,6 +43,11 @@ public class Message {
     @Column(name = "is_read")
     private Boolean isRead = false;
 
+    // Set when the receiver's app has received the message (the grey double tick). NULL = not
+    // delivered yet. Old rows stay NULL; the app treats "read" as implying "delivered".
+    @Column(name = "delivered_at")
+    private LocalDateTime deliveredAt;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
